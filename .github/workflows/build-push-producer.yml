@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/producers/**'
       - 'pyproject.toml'
+  workflow_dispatch:
 
 run-name: "Build producer @ ${{ github.sha }}"
 
