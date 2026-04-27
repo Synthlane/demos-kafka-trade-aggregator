@@ -11,3 +11,29 @@ Why Kafka: Every time someone buys or sells Bitcoin on Binance, an event fires. 
 The cool part: Binance makes their trade stream completely public. No account needed, no API key, nothing to sign up for. You'll connect to a live WebSocket URL and real trades will start pouring in immediately. The producer script that does this is already written for you — your job starts the moment data is inside Kafka.
 
 
+# commands
+
+**Start Redpanda (Kafka broker):**
+```bash
+docker compose up -d
+```
+
+**Run the producer** (streams live BTC/ETH/SOL trades from Binance into Kafka):
+```bash
+infisical run -- uv run src/producers/producer.py
+```
+
+**Run a consumer** (replace `day1` with `day2`…`day5` for each day's exercise):
+```bash
+infisical run -- uv run src/consumes/day1.py
+```
+
+**Run a Faust worker** (Day 4+):
+```bash
+infisical run -- uv run faust -A src.consumes.day4 worker -l info
+```
+
+**Check consumer lag:**
+```bash
+docker exec -it <container_id> rpk group describe trade-processor
+```
