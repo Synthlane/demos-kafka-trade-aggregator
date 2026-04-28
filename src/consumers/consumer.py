@@ -1,6 +1,7 @@
 
 from confluent_kafka import Consumer
-
+import socket 
+CONSUMER_ID = socket.gethostname() 
 c = Consumer({
     'bootstrap.servers': 'localhost:19092',
     'group.id':          'day1-group',
@@ -12,12 +13,13 @@ while True:
     msg = c.poll(1.0)
     if msg is None:
         continue
-    print(f"Partition: {msg.partition()} | Key: {msg.key().decode()} | Offset: {msg.offset()}")
+    print(f"[{CONSUMER_ID}] Partition: {msg.partition()} | Key: {msg.key().decode()} | Offset: {msg.offset()}")
 
 
-# * What happens to ordering if you publish without a key?
-# - kafka partition the messages based on the key provided. if no key is provided then I'll perform round robin or sticky partitions to send the message to different partitions. 
-# * Why does having 3 partitions and 1 consumer still work?
-# - because the consumer is subscribed to the topic not the partition. 
-# * What is an offset?
-# - offset is a pointer set in the kafka partition log which help consumer to tracks the progress. 
+# * What triggers a rebalance?
+# - kafka sends heartbeats to the consumers if the heartbeat response is failed then kafka mark it as dead and reimbalance the responsibility to other
+# * Why is rebalancing briefly disruptive to throughput?
+# - when the rebalancing occurs the entire consumption process stops and again the consumers are reassigns with partitions
+# * What is the relationship between partition count and max parallelism?
+# - the relationship is that one consumer can only consume one partition. so to achieve max parallelism follow 1:1 for partition and consumers . 
+# - this will help us achieve full resource usage. 
