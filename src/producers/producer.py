@@ -9,7 +9,12 @@ load_dotenv()
 BROKER  = os.environ['KAFKA_BROKER']
 TOPIC   = os.environ.get('KAFKA_TOPIC', 'trades')
 SYMBOLS = [
-    'btcusdt',  'ethusdt',  'solusdt'
+    'btcusdt',  'ethusdt',  'bnbusdt',  'solusdt',  'xrpusdt',
+    'dogeusdt', 'adausdt',  'trxusdt',  'avaxusdt', 'linkusdt',
+    'dotusdt',  'ltcusdt',  'shibusdt', 'nearusdt', 'uniusdt',
+    'atomusdt', 'aptusdt',  'arbusdt',  'opusdt',   'injusdt',
+    'suiusdt',  'tonusdt',  'pepeusdt', 'wifusdt',  'jupusdt',
+    'filusdt',  'xlmusdt',  'etcusdt',  'polusdt',  'ldousdt',
 ]
 _config = {'bootstrap.servers': BROKER}
 if os.environ.get('KAFKA_SASL_USERNAME'):
