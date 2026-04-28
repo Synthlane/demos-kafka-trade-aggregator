@@ -54,10 +54,16 @@ def _log_stats():
             n, _count = _count, 0
         print(f"[stats] {n} messages produced in last 10s ({n / 10:.1f}/s)")
 
+def _on_error(ws, error):
+    print(f"[error] {ws.url}: {error}")
+
+def _on_close(ws, code, msg):
+    print(f"[close] {ws.url} code={code} — reconnecting")
+
 def start_stream(symbol):
     url = f"wss://stream.binance.com:9443/ws/{symbol}@trade"
-    ws  = websocket.WebSocketApp(url, on_message=on_message)
-    ws.run_forever()
+    ws  = websocket.WebSocketApp(url, on_message=on_message, on_error=_on_error, on_close=_on_close)
+    ws.run_forever(reconnect=5)
 
 if __name__ == '__main__':
     threading.Thread(target=_log_stats, daemon=True).start()
