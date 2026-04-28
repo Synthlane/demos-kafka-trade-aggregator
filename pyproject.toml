@@ -9,5 +9,5 @@ dependencies = [
     "websocket-client>=1.7.0",
 ]
 
-[tool.uv]
-dev-dependencies = []
+[dependency-groups]
+dev = []
