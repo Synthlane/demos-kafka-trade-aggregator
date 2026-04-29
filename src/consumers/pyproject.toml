@@ -9,4 +9,5 @@ dependencies = [
     "aiokafka==0.10.0",
     "confluent-kafka>=2.14.0",
     "redis>=7.4.0",
+    "psycopg[binary,pool]>=3.3.3",
 ]
