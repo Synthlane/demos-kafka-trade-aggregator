@@ -36,3 +36,5 @@ DB_WRITER_RETRY_DELAY = float(os.environ.get("DB_WRITER_RETRY_DELAY", 2.0))  # s
 
 # ─────────────────────────── Trades buffer ───────────────────────────────────
 TRADES_FLUSH_SIZE = int(os.environ.get("TRADES_FLUSH_SIZE", 10_000))
+
+KNOWN_SYMBOLS_KEY="known_symbols"

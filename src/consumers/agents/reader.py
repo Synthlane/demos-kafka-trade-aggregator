@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from app import app
 from connectors import get_redis, close_pool
 from publishers import enqueue_analytics
-from agents.process import known_symbols, flush_trades
+from agents.process import known_symbols
 from utils.redis_utils import get_shadow_key, init_marker
 from utils.time import next_minute, current_minute, seconds_until_next_minute, parse_minute_bucket
 from config import READER_MARKER_KEY, READER_LOCK_KEY
@@ -67,5 +67,4 @@ async def reader_scheduler():
             await asyncio.sleep(seconds_until_next_minute())
 
     finally:
-        await flush_trades()   # drain any remaining buffered trades on shutdown
-        await close_pool()
+               await close_pool()
