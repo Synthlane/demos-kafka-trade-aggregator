@@ -5,9 +5,11 @@ description = "Live trade feed aggregator using Kafka/Redpanda and Binance publi
 requires-python = ">=3.11"
 dependencies = [
     "confluent-kafka>=2.3.0",
+    "dotenv>=0.9.9",
     "faust-streaming>=0.10.0",
     "websocket-client>=1.7.0",
 ]
 
 [dependency-groups]
 dev = []
+
