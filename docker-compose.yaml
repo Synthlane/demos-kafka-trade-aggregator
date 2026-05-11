@@ -26,3 +26,7 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: redpanda:9092
+  redis:
+    image: redis:latest
+    ports:
+      - "6380:6379"

@@ -31,10 +31,10 @@ async def enqueue_analytics(rows: list[tuple]) -> None:
     """
     Publish a batch of analytics rows to the SQL topic.
 
-    Row tuple: (symbol: str, bucket_dt: datetime, volume: float)
+    Row tuple: (symbol: str, bucket_dt: datetime, delta: float)
 
     Kafka payload:
-        { "op": "analytics", "rows": [[symbol, iso_bucket, volume], ...] }
+        { "op": "analytics", "rows": [[symbol, iso_bucket, delta], ...] }
     """
     if not rows:
         return
@@ -42,8 +42,8 @@ async def enqueue_analytics(rows: list[tuple]) -> None:
     payload = json.dumps({
         "op":   OP_ANALYTICS,
         "rows": [
-            [symbol, bucket_dt.isoformat(), volume]
-            for symbol, bucket_dt, volume in rows
+            [symbol, bucket_dt.isoformat(), delta]
+            for symbol, bucket_dt, delta in rows
         ],
     }).encode()
 

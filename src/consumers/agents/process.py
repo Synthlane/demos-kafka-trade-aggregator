@@ -1,11 +1,9 @@
-import json
 from datetime import datetime, timezone
 
-from app import app, trades_topic
+from app import app, trades_topic, volume_window
 from connectors import get_redis
-from publishers import enqueue_trades
-from utils.redis_utils import get_shadow_key, set_with_keepttl_or_default_ttl
-from config import VOLUME_TTL, SHADOW_TTL, TRADES_FLUSH_SIZE, KNOWN_SYMBOLS_KEY
+from publishers import enqueue_trades, enqueue_analytics
+from config import TRADES_FLUSH_SIZE, KNOWN_SYMBOLS_KEY
 
 # ─────────────────────────── Shared state ────────────────────────────────────
 known_symbols: set[str] = set()
@@ -22,44 +20,43 @@ async def hydrate_known_symbols():
         print(f"[PROCESS] Hydrated {len(members)} symbols from Redis")
 
 
-# ─────────────────────────── Stream agent ────────────────────────────────────
+# ─────────────────────────── Agent 1: windowed volume ────────────────────────
 
 @app.agent(trades_topic)
-async def process(stream):
+async def update_volume(stream):
+    async for trade in stream:
+        volume_window[trade.symbol] += trade.qty
+
+
+# ─────────────────────────── Agent 2: batched DB writes ──────────────────────
+
+@app.agent(trades_topic)
+async def flush_trades(stream):
     async for batch in stream.take(TRADES_FLUSH_SIZE, within=2.0):
         trades = []
+        deltas_by_bucket: dict[tuple[str, datetime], float] = {}
+        new_symbols: set[str] = set()
 
-        for data in batch:
-            if not isinstance(data, dict):
-                data = json.loads(data)
+        for trade in batch:
+            dt        = datetime.fromtimestamp(trade.event_ts, tz=timezone.utc)
+            bucket_dt = dt.replace(second=0, microsecond=0)
 
-            symbol = data["symbol"]
-            qty    = float(data["qty"])
-            price  = float(data.get("price", 0))
-            ts     = data["time"] / 1000.0
-            dt     = datetime.fromtimestamp(ts, tz=timezone.utc)
+            if trade.symbol not in known_symbols:
+                known_symbols.add(trade.symbol)
+                new_symbols.add(trade.symbol)
 
-            # ── Persist symbol to Redis set so it survives restarts ───────
-            if symbol not in known_symbols:
-                known_symbols.add(symbol)
-                r_sym = await get_redis()
-                await r_sym.sadd(KNOWN_SYMBOLS_KEY, symbol)
+            trades.append((trade.symbol, trade.qty, trade.price, dt))
+            key = (trade.symbol, bucket_dt)
+            deltas_by_bucket[key] = deltas_by_bucket.get(key, 0.0) + trade.qty
 
-            # ── Accumulate volume in Redis ────────────────────────────────
-            r             = await get_redis()
-            minute_bucket = dt.strftime("%Y-%m-%d:%H-%M")
-            key           = f"volume:{symbol}:{minute_bucket}"
-            shadow_key    = get_shadow_key(key)
+        if new_symbols:
+            r = await get_redis()
+            async with r.pipeline() as pipe:
+                for symbol in new_symbols:
+                    pipe.sadd(KNOWN_SYMBOLS_KEY, symbol)
+                await pipe.execute()
 
-            await set_with_keepttl_or_default_ttl(r, key, 0)
-            await r.incrbyfloat(shadow_key, qty)
-
-            if await r.ttl(shadow_key) == -1:
-                await r.expire(shadow_key, SHADOW_TTL)
-            if await r.ttl(key) == -1:
-                await r.expire(key, VOLUME_TTL)
-
-            trades.append((symbol, qty, price, dt))
-
-        # ── Flush batch to SQL topic (offsets commit only after this) ─────
         await enqueue_trades(trades)
+        await enqueue_analytics(
+            [(symbol, bucket_dt, delta) for (symbol, bucket_dt), delta in deltas_by_bucket.items()]
+        )
