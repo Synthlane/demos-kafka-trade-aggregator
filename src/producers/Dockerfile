@@ -6,9 +6,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-COPY producers/pyproject.toml .
+COPY pyproject.toml .
 RUN uv sync --no-dev
 
-COPY src/producers/producer.py .
+COPY producer.py .
 
 CMD ["uv", "run", "producer.py"]
