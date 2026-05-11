@@ -1,11 +1,10 @@
 import json
 from datetime import datetime, timezone
 
-from app import app, trades_topic
+from app import app, trades_topic, volume_window
 from connectors import get_redis
-from publishers import enqueue_trades
-from utils.redis_utils import get_shadow_key, set_with_keepttl_or_default_ttl
-from config import VOLUME_TTL, SHADOW_TTL, TRADES_FLUSH_SIZE, KNOWN_SYMBOLS_KEY
+from publishers import enqueue_trades, enqueue_analytics
+from config import TRADES_FLUSH_SIZE, KNOWN_SYMBOLS_KEY
 
 # ─────────────────────────── Shared state ────────────────────────────────────
 known_symbols: set[str] = set()
@@ -28,6 +27,7 @@ async def hydrate_known_symbols():
 async def process(stream):
     async for batch in stream.take(TRADES_FLUSH_SIZE, within=2.0):
         trades = []
+        deltas_by_bucket: dict[tuple[str, datetime], float] = {}
 
         for data in batch:
             if not isinstance(data, dict):
@@ -38,6 +38,7 @@ async def process(stream):
             price  = float(data.get("price", 0))
             ts     = data["time"] / 1000.0
             dt     = datetime.fromtimestamp(ts, tz=timezone.utc)
+            bucket_dt = dt.replace(second=0, microsecond=0)
 
             # ── Persist symbol to Redis set so it survives restarts ───────
             if symbol not in known_symbols:
@@ -45,21 +46,15 @@ async def process(stream):
                 r_sym = await get_redis()
                 await r_sym.sadd(KNOWN_SYMBOLS_KEY, symbol)
 
-            # ── Accumulate volume in Redis ────────────────────────────────
-            r             = await get_redis()
-            minute_bucket = dt.strftime("%Y-%m-%d:%H-%M")
-            key           = f"volume:{symbol}:{minute_bucket}"
-            shadow_key    = get_shadow_key(key)
-
-            await set_with_keepttl_or_default_ttl(r, key, 0)
-            await r.incrbyfloat(shadow_key, qty)
-
-            if await r.ttl(shadow_key) == -1:
-                await r.expire(shadow_key, SHADOW_TTL)
-            if await r.ttl(key) == -1:
-                await r.expire(key, VOLUME_TTL)
+            # ── Accumulate volume in a Faust tumbling window (1 minute) ───
+            window = volume_window[symbol].relative_to(ts)
+            window.value = float(window.value or 0.0) + qty
 
             trades.append((symbol, qty, price, dt))
+            deltas_by_bucket[(symbol, bucket_dt)] = deltas_by_bucket.get((symbol, bucket_dt), 0.0) + qty
 
         # ── Flush batch to SQL topic (offsets commit only after this) ─────
         await enqueue_trades(trades)
+        await enqueue_analytics(
+            [(symbol, bucket_dt, delta) for (symbol, bucket_dt), delta in deltas_by_bucket.items()]
+        )

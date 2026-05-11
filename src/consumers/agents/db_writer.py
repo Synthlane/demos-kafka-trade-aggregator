@@ -42,7 +42,7 @@ async def _execute_db_op(op: str, rows: list) -> None:
                         INSERT INTO trades_analytics (symbol, minute_bucket, volume)
                         VALUES (%s, %s, %s)
                         ON CONFLICT (symbol, minute_bucket) DO UPDATE
-                            SET volume = EXCLUDED.volume
+                            SET volume = trades_analytics.volume + EXCLUDED.volume
                         """,
                         parsed,
                     )

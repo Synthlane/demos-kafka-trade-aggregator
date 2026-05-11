@@ -1,11 +1,11 @@
 import asyncio
 from datetime import datetime, timezone
 
-from app import app
+from app import app, volume_window
 from connectors import get_redis, close_pool
 from publishers import enqueue_analytics
 from agents.process import known_symbols
-from utils.redis_utils import get_shadow_key, init_marker
+from utils.redis_utils import init_marker
 from utils.time import next_minute, current_minute, seconds_until_next_minute, parse_minute_bucket
 from config import READER_MARKER_KEY, READER_LOCK_KEY
 
@@ -15,19 +15,16 @@ async def read_minute_window(minute_bucket: str) -> None:
         print(f"[READER] No symbols tracked yet for window: {minute_bucket}")
         return
 
-    r          = await get_redis()
     dt_display = parse_minute_bucket(minute_bucket).strftime("%Y-%m-%d %H:%M UTC")
     rows: list[tuple] = []
 
-    for symbol in sorted(known_symbols):
-        key        = f"volume:{symbol}:{minute_bucket}"
-        shadow_key = get_shadow_key(key)
-        raw        = await r.get(shadow_key)
-        if raw is None:
-            continue
+    bucket_dt = parse_minute_bucket(minute_bucket)
+    bucket_ts = bucket_dt.timestamp()
 
-        volume    = float(raw)
-        bucket_dt = parse_minute_bucket(minute_bucket)
+    for symbol in sorted(known_symbols):
+        volume = float(volume_window[symbol].value(bucket_ts) or 0.0)
+        if volume == 0.0:
+            continue
 
         print(f"[{dt_display}] Symbol: {symbol:<10} CHANGE: {volume:.4f} USD")
         rows.append((symbol, bucket_dt, volume))
