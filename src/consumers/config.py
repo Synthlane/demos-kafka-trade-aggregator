@@ -5,7 +5,7 @@ load_dotenv()
 
 # ─────────────────────────── Kafka ───────────────────────────────────────────
 KAFKA_BROKER     = os.environ.get("KAFKA_BROKER")    or "kafka://localhost:19092"
-KAFKA_PARTITIONS = int(os.environ.get("KAFKA_PARTITION", 3))
+KAFKA_PARTITIONS = int(os.environ.get("KAFKA_PARTITION", 32))
 KAFKA_TOPIC      = os.environ.get("KAFKA_TOPIC")     or "trades"
 SQL_TOPIC        = os.environ.get("SQL_TOPIC")       or "trade_sql_queries"
 DLQ_TOPIC        = os.environ.get("DLQ_TOPIC")       or "trade_sql_queries_dlq"
