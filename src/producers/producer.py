@@ -4,7 +4,8 @@ import threading
 import time
 import websocket
 from confluent_kafka import Producer
-
+from dotenv import load_dotenv
+load_dotenv()
 BROKER  = os.environ['KAFKA_BROKER']
 TOPIC   = os.environ.get('KAFKA_TOPIC', 'trades')
 SYMBOLS = [
@@ -15,7 +16,6 @@ SYMBOLS = [
     'suiusdt',  'tonusdt',  'pepeusdt', 'wifusdt',  'jupusdt',
     'filusdt',  'xlmusdt',  'etcusdt',  'polusdt',  'ldousdt',
 ]
-
 _config = {'bootstrap.servers': BROKER}
 if os.environ.get('KAFKA_SASL_USERNAME'):
     _config.update({
