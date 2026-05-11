@@ -13,9 +13,9 @@ DLQ_TOPIC        = os.environ.get("DLQ_TOPIC")       or "trade_sql_queries_dlq"
 # ─────────────────────────── Storage ─────────────────────────────────────────
 DATABASE_URL = (
     os.environ.get("DATABASE_URL")
-    or "postgresql://postgres@password@localhost:5432/postgres"
+    or "postgresql://postgres:postgres@127.0.0.1:54322/trades"
 )
-REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379"
+REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6380"
 
 # ─────────────────────────── Redis keys / channels ───────────────────────────
 KEYEVENT_CHANNEL  = "__keyevent@0__:expired"
