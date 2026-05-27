@@ -1,39 +1,94 @@
-# noida-demos
-This repo contains any new demo project required for understanding of concepts. Never production use!!
+# Kafka Trade Aggregator
 
-Build a Live Trade Feed with Kafka
+A real-time trade aggregation pipeline using Kafka (Redpanda), Faust, Redis, and PostgreSQL.
 
-What you're building: You're going to tap into Binance's live market data and watch real Bitcoin, Ethereum, and Solana trades happen in real time — then build a pipeline that processes them. By the end of the week you'll have a system that tracks how much of each coin is being traded every minute, recovers from crashes on its own, and speeds up just by running one extra command.
+## Architecture
 
+```
+Binance WebSocket → Producer → Kafka (trades topic)
+                                    ↓
+                              Faust Worker
+                         ┌─────────┼─────────┐
+                         ↓         ↓         ↓
+                  update_volume  flush_trades  reader (timer)
+                    (window)    (batch→SQL)   (analytics)
+                         ↓         ↓         ↓
+                       Redis    sql_topic   sql_topic
+                                    ↓         ↓
+                              db_writer agent
+                                    ↓
+                              PostgreSQL
+                              (trades + analytics)
+```
 
-Why Kafka: Every time someone buys or sells Bitcoin on Binance, an event fires. During busy market hours, thousands of these fire every second. A regular program reading them one by one would fall behind, lose data on a crash, and have no way to scale. Kafka solves all three problems — and this week you'll see exactly how, on real data, in a way that just reading docs never shows you.
+## Prerequisites
 
-The cool part: Binance makes their trade stream completely public. No account needed, no API key, nothing to sign up for. You'll connect to a live WebSocket URL and real trades will start pouring in immediately. The producer script that does this is already written for you — your job starts the moment data is inside Kafka.
+- Python 3.11–3.13
+- Docker (for Redis + PostgreSQL)
+- `uv` package manager
 
+## Quick Start
 
-# commands
-
-**Start Redpanda (Kafka broker):**
+1. **Start local services (Redis + PostgreSQL):**
 ```bash
 docker compose up -d
 ```
 
-**Run the producer** (streams live BTC/ETH/SOL trades from Binance into Kafka):
+2. **Install dependencies:**
 ```bash
-infisical run -- uv run src/producers/producer.py
+uv sync
 ```
 
-**Run a consumer** (replace `day1` with `day2`…`day5` for each day's exercise):
+3. **Run the Faust worker (tumbling window, default):**
 ```bash
-infisical run -- uv run src/consumes/day1.py
+./run.sh faust -A src.consumers.app worker -l info
 ```
 
-**Run a Faust worker** (Day 4+):
+4. **Run with hopping window:**
 ```bash
-infisical run -- uv run faust -A src.consumes.day4 worker -l info
+WINDOW_TYPE=hopping ./run.sh faust -A src.consumers.app worker -l info
 ```
 
-**Check consumer lag:**
+## Topic Management
+
 ```bash
-docker exec -it <container_id> rpk group describe trade-processor
+./run.sh src/consumers/manage_topic.py list
+./run.sh src/consumers/manage_topic.py describe trades
+./run.sh src/consumers/manage_topic.py delete <topic_name>
+./run.sh src/consumers/manage_topic.py create <topic_name> --partitions 3
 ```
+
+## Late Arrival Testing
+
+```bash
+./run.sh src/consumers/publish_late.py
+LATE_MINUTES=5 ./run.sh src/consumers/publish_late.py
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KAFKA_BROKER` | `localhost:9092` | Kafka/Redpanda broker address |
+| `KAFKA_SASL_USERNAME` | — | SASL username |
+| `KAFKA_SASL_PASSWORD` | — | SASL password |
+| `KAFKA_SECURITY_PROTOCOL` | `PLAINTEXT` | Security protocol |
+| `KAFKA_TOPIC` | `trades` | Inbound trades topic |
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/trades` | PostgreSQL DSN |
+| `REDIS_URL` | `redis://localhost:6380` | Redis URL |
+| `WINDOW_TYPE` | `tumbling` | Window type: `tumbling` or `hopping` |
+| `WINDOW_SIZE_SECONDS` | `60` | Window size in seconds |
+| `WINDOW_EXPIRES_SECONDS` | `600` | Window expiry (grace period) |
+| `WINDOW_STEP_SECONDS` | `30` | Hopping window step size |
+| `TRADES_FLUSH_SIZE` | `50` | Batch size before DB flush |
+
+## Concepts Covered
+
+- Topics, partitions, ordering guarantees
+- Consumer groups, rebalancing, partition ownership
+- Offsets, at-least-once delivery
+- Stateful streaming with Faust Tables
+- Tumbling vs hopping windows
+- Late data handling via `expires` (grace period)
+- Consumer lag and horizontal scaling
+- Dead Letter Queue (DLQ) for failed writes
