@@ -26,7 +26,7 @@ def main():
     if PROTOCOL == "SASL_PLAINTEXT":
         conf.update({
             "security.protocol": PROTOCOL,
-            "sasl.mechanism": "PLAIN",
+            "sasl.mechanism": "SCRAM-SHA-512",
             "sasl.username": USERNAME,
             "sasl.password": PASSWORD,
         })

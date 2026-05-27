@@ -8,7 +8,7 @@ from ..config import DB_WRITER_MAX_RETRIES
 
 TRADES_INSERT = """
     INSERT INTO trades (symbol, price, qty, trade_time, buyer_maker)
-    VALUES ($1, $2, $3, to_timestamp($4 / 1000.0), $5)
+    VALUES ($1, $2, $3, $4, $5)
 """
 
 ANALYTICS_INSERT = """
@@ -21,7 +21,7 @@ ANALYTICS_INSERT = """
 async def write_to_db(stream):
     """Consume internal SQL topic, persist to PostgreSQL with retry + DLQ."""
     async for msg in stream:
-        payload = json.loads(msg)
+        payload = msg if isinstance(msg, dict) else json.loads(msg)
         msg_type = payload.get("type")
         rows = payload.get("rows", [])
 
@@ -49,9 +49,11 @@ async def write_to_db(stream):
                                 )
                 break  # success
             except Exception as e:
-                print(f"[db_writer] attempt {attempt} failed: {e}")
                 if attempt == DB_WRITER_MAX_RETRIES:
-                    print(f"[db_writer] sending to DLQ: {traceback.format_exc()}")
-                    await dlq_topic.send(value=json.dumps(payload).encode())
+                    print(f"[db_writer] all retries failed, skipping: {e}")
+                    try:
+                        await dlq_topic.send(value=json.dumps(payload).encode())
+                    except Exception:
+                        pass
                 else:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(min(2 ** attempt, 5))

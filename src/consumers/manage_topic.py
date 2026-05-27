@@ -10,7 +10,7 @@ Usage:
 import os
 import sys
 from dotenv import load_dotenv
-from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions
 
 load_dotenv()
 
@@ -25,7 +25,7 @@ def _admin() -> AdminClient:
     if PROTOCOL == "SASL_PLAINTEXT":
         conf.update({
             "security.protocol": PROTOCOL,
-            "sasl.mechanism": "PLAIN",
+            "sasl.mechanism": "SCRAM-SHA-512",
             "sasl.username": USERNAME,
             "sasl.password": PASSWORD,
         })
@@ -76,6 +76,18 @@ def create_topic(name: str, partitions: int = 3):
             print(f"Failed to create {topic_name}: {e}")
 
 
+def alter_partitions(name: str, partitions: int):
+    admin = _admin()
+    new_parts = NewPartitions(name, new_total_count=partitions)
+    futures = admin.create_partitions([new_parts])
+    for topic_name, future in futures.items():
+        try:
+            future.result()
+            print(f"Altered: {topic_name} now has {partitions} partitions")
+        except Exception as e:
+            print(f"Failed to alter {topic_name}: {e}")
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: manage_topic.py <list|describe|delete|create> [args]")
@@ -103,6 +115,14 @@ if __name__ == "__main__":
             idx = sys.argv.index("--partitions")
             parts = int(sys.argv[idx + 1])
         create_topic(name, parts)
+    elif cmd == "alter":
+        if len(sys.argv) < 4:
+            print("Usage: manage_topic.py alter <topic_name> --partitions N")
+            sys.exit(1)
+        name = sys.argv[2]
+        idx = sys.argv.index("--partitions")
+        parts = int(sys.argv[idx + 1])
+        alter_partitions(name, parts)
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

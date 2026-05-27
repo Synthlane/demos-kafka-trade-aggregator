@@ -6,8 +6,11 @@ from ..publishers import enqueue_analytics
 @app.timer(interval=60.0)
 async def emit_window_analytics():
     """Periodically read closed window volumes and publish analytics to DB."""
-    r = await get_redis()
-    symbols = await r.smembers("known_symbols")
+    try:
+        r = await get_redis()
+        symbols = await r.smembers("known_symbols")
+    except Exception:
+        return
 
     if not symbols:
         return
@@ -23,5 +26,8 @@ async def emit_window_analytics():
             print(f"[reader] error reading {symbol}: {e}")
 
     if rows:
-        await enqueue_analytics(rows)
-        print(f"[reader] enqueued {len(rows)} analytics rows")
+        try:
+            await enqueue_analytics(rows)
+            print(f"[reader] enqueued {len(rows)} analytics rows")
+        except Exception:
+            pass

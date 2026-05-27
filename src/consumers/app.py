@@ -30,6 +30,7 @@ app = faust.App(
     value_serializer="json",
     topic_partitions=3,
     store="memory://",
+    web_enabled=False,
 )
 
 trades_topic = app.topic(KAFKA_TOPIC, value_type=bytes)
